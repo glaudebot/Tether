@@ -1,0 +1,26 @@
+<Window x:Class="Tether.Host.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:link="clr-namespace:Tether.Host.LinkView"
+        Title="Tether" Width="1600" Height="900" Background="#1E1E1E">
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Bottom" Background="#2D2D30">
+            <Button x:Name="UndockButton" DockPanel.Dock="Right" Content="도킹 해제" Margin="4" Padding="10,2"/>
+            <CheckBox x:Name="EmbedToggle" DockPanel.Dock="Right" Content="Embed (실험)" Foreground="#DDD"
+                      VerticalAlignment="Center" Margin="8,0" ToolTip="켠 뒤 도킹하는 창부터 Tether 안에 자식 창으로 넣습니다"/>
+            <TextBlock Text="{Binding StatusText}" Foreground="#DDD" VerticalAlignment="Center" Margin="8,0"/>
+        </DockPanel>
+        <!-- columns or rows are set in code: side by side when wide, stacked when tall -->
+        <Grid x:Name="SlotGrid">
+            <Border x:Name="SlotA" Grid.Column="0" BorderBrush="#555" BorderThickness="1" Margin="4">
+                <TextBlock Text="슬롯 A — 창을 끌어다 놓으세요" Foreground="#777" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <Border x:Name="LinkArea" Grid.Column="1" Margin="4">
+                <link:LinkView x:Name="Link"/>
+            </Border>
+            <Border x:Name="SlotB" Grid.Column="2" BorderBrush="#555" BorderThickness="1" Margin="4">
+                <TextBlock Text="슬롯 B — 창을 끌어다 놓으세요" Foreground="#777" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>
