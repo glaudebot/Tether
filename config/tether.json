@@ -16,7 +16,10 @@
         "input": { "controlType": "Edit", "name": "Gemini 프롬프트 입력" },
         "stopButton": { "controlType": "Button", "name": "대답 생성 중지" },
         "imageDownload": { "controlType": "Button", "name": "원본 크기 이미지 다운로드" },
-        "imageCopy": { "controlType": "Button", "name": "이미지 복사" }
+        "imageCopy": { "controlType": "Button", "name": "이미지 복사" },
+        "answer": { "controlType": "Group", "automationId": "model-response-message-content*" },
+        "answerCopy": { "controlType": "Button", "name": "복사" },
+        "newChat": { "controlType": "Hyperlink", "name": "새 채팅" }
       },
       "timeouts": { "responseSec": 180, "stableSec": 3, "downloadSec": 90, "textIdleSec": 20 }
     }

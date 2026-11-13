@@ -28,7 +28,7 @@ public static class UiaFinder
     {
         Condition cond = Condition.TrueCondition;
         var parts = new List<Condition>();
-        if (s.AutomationId is not null) parts.Add(new PropertyCondition(AutomationElement.AutomationIdProperty, s.AutomationId));
+        if (s.AutomationId is not null && !s.AutomationId.Contains('*')) parts.Add(new PropertyCondition(AutomationElement.AutomationIdProperty, s.AutomationId));
         if (s.ClassName is not null) parts.Add(new PropertyCondition(AutomationElement.ClassNameProperty, s.ClassName));
         if (s.ControlType is not null) parts.Add(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlTypeOf(s.ControlType)));
         if (s.Name is not null && !s.Name.Contains('*')) parts.Add(new PropertyCondition(AutomationElement.NameProperty, s.Name));
@@ -37,6 +37,7 @@ public static class UiaFinder
 
         var all = root.FindAll(TreeScope.Descendants, cond).Cast<AutomationElement>();
         if (s.Name is not null && s.Name.Contains('*')) all = all.Where(e => NameMatches(e.Current.Name, s.Name));
+        if (s.AutomationId is not null && s.AutomationId.Contains('*')) all = all.Where(e => NameMatches(e.Current.AutomationId, s.AutomationId));
         return all.ToList();
     }
 
@@ -76,6 +77,8 @@ public static class UiaFinder
         "Button" => ControlType.Button,
         "Document" => ControlType.Document,
         "Image" => ControlType.Image,
+        "Hyperlink" => ControlType.Hyperlink,
+        "Group" => ControlType.Group,
         "Text" => ControlType.Text,
         "Window" => ControlType.Window,
         _ => throw new ArgumentException($"지원하지 않는 controlType: {name}"),

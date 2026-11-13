@@ -32,9 +32,9 @@ public class Router(PacketStore store, IEnumerable<IResponder> responders, IEnum
         {
             var responder = responders[request.To];
             Set(packet.Seq, PacketStatus.Delivering);
-            await responder.DeliverAsync(request.Body, ct);
+            await responder.DeliverAsync(request, ct);
             Set(packet.Seq, PacketStatus.Generating);
-            var reply = await responder.CollectReplyAsync(ct);
+            var reply = await responder.CollectReplyAsync(request, ct);
             store.SaveReply(packet.Seq, reply);
             packet = Set(packet.Seq, PacketStatus.Replied);
         }

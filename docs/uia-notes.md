@@ -25,6 +25,23 @@
   - 같은 이름이 있으면 `다른 이름으로 저장 확인`(#32770) 창 → 패킷마다 새 경로를 쓰므로 정상 흐름에선 안 뜸. 뜨면 `Alt+N`(아니요)으로 닫고 실패 처리
 - 결론: 기본은 다운로드(원본, 대화상자 자동 처리), 실패·시간 초과(대화상자 10초, 파일 30초) 시 복사로 폴백
 
+### 텍스트 답변 · 새 채팅 (2026-11-13)
+
+도구: `spikes/gemini-dump.ps1`(트리 덤프), `spikes/gemini-send.ps1`(붙여넣기+Enter), `spikes/gemini-text.ps1`(답변 읽기 비교)
+
+| 용도 | ControlType | 식별 | 근거 |
+|---|---|---|---|
+| answer | Group | AutomationId `model-response-message-content*` (뒤에 답변별 id), class `markdown markdown-main-panel ...` | 답변마다 하나. 프롬프트 말풍선은 class `user-query-bubble-with-background`라 섞이지 않음. 이미지 답변도 같은 Group 안에 Image가 들어 있음 |
+| answerCopy | Button | Name `복사` | 답변 Group 바로 아래(약 4px) 도구 줄에 있음. 프롬프트의 `프롬프트 복사`, 이미지의 `이미지 복사`와 이름이 달라 정확 일치로 구분. 이미지만 있는 답변에는 없음 |
+| newChat | Hyperlink | Name `새 채팅` | 상단 `side-nav-sparkle-button`과 사이드바 목록 항목 두 개. 첫 번째를 Invoke하면 새 대화가 열리고 answer Group이 0개가 됨 |
+
+- 답변 읽기 비교 (목록 3개 + 굵은 문장 요청):
+  - **복사 버튼 → 클립보드**: 마크다운 원문 (`* Apple` … `**...**`). 클립보드 형식에 HTML도 있으나 텍스트만 사용 → **기본**
+  - **UIA Text 자손**: 줄바꿈은 남지만 목록 기호·굵게 등 서식이 빠짐 → 복사 실패 시 폴백
+- 이번 답변 찾기: 붙여넣기 전 마지막 answer의 RuntimeId를 기억하고, 그 뒤에 생긴 answer만 본다(이미지와 같은 방식). 새 채팅이면 붙여넣기 직전 0개라 모두 새 답변.
+- 완료 판정: 중지 버튼 없음 + 새 답변(이미지 수, 답변 수, 마지막 답변 텍스트 길이)이 `textIdleSec` 동안 그대로. `reply: image`에서 새 이미지가 있으면 기존처럼 `stableSec`.
+- 실행 확인: #000019(thread new, 새 대화 "제미나이의 한 줄 자기소개", 붙여 넣은 글은 본문만) → #000020(같은 대화에 이어짐, reply.md에 이번 답변만) → #000021(머리줄 없는 이미지 요청, reply-1.png 2752×1536, 이미지만 있는 답변이라 reply.md 없음)
+
 ## Claude 데스크톱 (4.23118.0.0, MSIX)
 
 - 경로: `C:\Program Files\WindowsApps\Claude_4.23118.0.0_x64__pzs8sxrjxfjjc\app\Claude.exe`, 프로세스명 `claude`, 창 클래스 `Chrome_WidgetWin_1`

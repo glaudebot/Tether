@@ -42,6 +42,16 @@ public sealed class RouterTests : IDisposable
     }
 
     [Fact]
+    public async Task Submit_Headers_PassedToResponderButNotPasted()
+    {
+        await NewRouter().SubmitAsync("claude", "to: gemini\nreply: text\nthread: new\n\n자기소개", default);
+
+        Assert.Equal("자기소개", gemini.Prompts.Single());
+        Assert.Equal((ReplyKind.Text, ThreadMode.New), (gemini.Requests.Single().Reply, gemini.Requests.Single().Thread));
+        Assert.Equal(ReplyKind.Text, gemini.CollectedFor.Single().Reply);
+    }
+
+    [Fact]
     public async Task Submit_BadFormat_FailsAndNotifies()
     {
         var p = await NewRouter().SubmitAsync("claude", "그냥 본문", default);
@@ -151,17 +161,21 @@ internal sealed class FakeResponder(string appId) : IResponder
     public TimeSpan Delay { get; set; }
     public int MaxConcurrent { get; private set; }
 
-    public async Task DeliverAsync(string prompt, CancellationToken ct)
+    public List<AppRequest> Requests { get; } = [];
+    public List<AppRequest> CollectedFor { get; } = [];
+
+    public async Task DeliverAsync(AppRequest request, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         var now = Interlocked.Increment(ref running);
-        lock (Prompts) { Prompts.Add(prompt); MaxConcurrent = Math.Max(MaxConcurrent, now); }
+        lock (Prompts) { Prompts.Add(request.Body); Requests.Add(request); MaxConcurrent = Math.Max(MaxConcurrent, now); }
         await Task.Delay(Delay, ct);
     }
 
-    public Task<AppReply> CollectReplyAsync(CancellationToken ct)
+    public Task<AppReply> CollectReplyAsync(AppRequest request, CancellationToken ct)
     {
         Interlocked.Decrement(ref running);
+        lock (Prompts) CollectedFor.Add(request);
         return CollectError is null ? Task.FromResult(Reply) : Task.FromException<AppReply>(CollectError);
     }
 }

@@ -41,10 +41,11 @@ try
             return 0;
         case "test-gemini" when argList.Count > 1:
             var gemini = tether.Responders.Single(r => r.AppId == "gemini");
-            await gemini.DeliverAsync(argList[1], cts.Token);
+            var request = new Tether.Core.AppRequest("cli", "gemini", argList[1]);
+            await gemini.DeliverAsync(request, cts.Token);
             Log("전송 완료, 응답 대기 중...");
-            var reply = await gemini.CollectReplyAsync(cts.Token);
-            Log($"DONE {string.Join(", ", reply.ImagePaths)}");
+            var reply = await gemini.CollectReplyAsync(request, cts.Token);
+            Log($"DONE {string.Join(", ", reply.ImagePaths)}\n{reply.Text}");
             return 0;
         case "test-notify" when argList.Count > 1:
             await tether.Notifiers.Single(n => n.AppId == "claude").NotifyAsync(argList[1], cts.Token);

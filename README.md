@@ -47,7 +47,23 @@ to: gemini
 ```
 
 - 첫 줄은 정확히 `to: <앱 id>`, 둘째 줄부터가 Gemini에 입력될 프롬프트입니다.
-- 결과는 `packets\<6자리 번호>\`에 `request.md`, `status.json`, `reply-1.png`로 저장됩니다.
+- 선택 머리줄: `to:` 다음에 `키: 값`을 쓰고 빈 줄 하나 뒤에 본문을 씁니다. 머리줄은 Gemini에 붙여 넣지 않습니다.
+
+  ```
+  to: gemini
+  reply: text
+  thread: new
+
+  이 설계안을 검토해줘 ...
+  ```
+
+  | 키 | 값 (기본값 먼저) | 뜻 |
+  |---|---|---|
+  | `reply` | `image` / `text` | `text`면 이미지를 기다리지 않고 텍스트 답변이 끝나면 완료 |
+  | `thread` | `continue` / `new` | `new`면 붙여 넣기 전에 Gemini의 새 채팅을 엽니다 |
+
+  모르는 키나 잘못된 값은 `Failed`로 거절합니다. 본문 첫 줄이 `Note: ...`처럼 생겼다면 `to:` 다음에 빈 줄을 넣으세요.
+- 결과는 `packets\<6자리 번호>\`에 `request.md`, `status.json`, `reply.md`(답변 텍스트, 마크다운), `reply-1.png`(새 이미지)로 저장됩니다.
 - 상태: `Queued → Delivering → Generating → Replied → Notified`, 실패하면 `Failed`와 `error`.
 - **Claude 데스크톱**(`outbox\claude\`)은 Tether가 입력창에 도착 알림을 붙여 넣어 줍니다.
 - **Claude Code**(`outbox\claude-code\`)는 알림이 없으니 `status.json`을 직접 확인합니다.

@@ -4,6 +4,10 @@ namespace Tether.Core;
 public interface IResponder
 {
     string AppId { get; }
-    Task DeliverAsync(string prompt, CancellationToken ct);
-    Task<AppReply> CollectReplyAsync(CancellationToken ct);
+
+    /// <summary>Pastes only <see cref="AppRequest.Body"/>; Thread decides whether a new conversation is opened first.</summary>
+    Task DeliverAsync(AppRequest request, CancellationToken ct);
+
+    /// <summary>Waits for the answer to the request just delivered; Reply decides whether to wait for an image.</summary>
+    Task<AppReply> CollectReplyAsync(AppRequest request, CancellationToken ct);
 }

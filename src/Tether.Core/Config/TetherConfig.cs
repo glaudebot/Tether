@@ -18,8 +18,8 @@ public record AppConfig(string Id, string Role, string Process, IReadOnlyDiction
         Selectors.TryGetValue(key, out var s) ? s : throw new InvalidDataException($"{Id} 설정에 '{key}' 셀렉터가 없습니다");
 }
 
-/// <summary>Name may use '*' at either end for contains / starts-with / ends-with matching.</summary>
+/// <summary>Name and AutomationId may use '*' at either end for contains / starts-with / ends-with matching.</summary>
 public record SelectorConfig(string? AutomationId, string? Name, string? ControlType, string? ClassName);
 
-/// <param name="TextIdleSec">With no new image, how long the UI must stay idle before the reply counts as text-only.</param>
+/// <param name="TextIdleSec">How long a text answer (no new image) must stay unchanged before it counts as finished.</param>
 public record TimeoutConfig(int ResponseSec = 180, int StableSec = 3, int DownloadSec = 90, int TextIdleSec = 20);

@@ -15,8 +15,9 @@ using Tether.Core.Config;
 namespace Tether.Automation;
 
 /// <summary>
-/// Pastes the prompt into Gemini desktop, waits for generation to finish, and saves new images.
-/// Text-only replies return no files (see ledger). Selectors come from config (docs/uia-notes.md).
+/// Pastes the request body into Gemini desktop (after opening a new chat for thread: new), waits for the answer,
+/// and returns its text (markdown via the answer's copy button) plus new images when reply: image.
+/// Selectors come from config (docs/uia-notes.md).
 /// </summary>
 public class GeminiResponder(AppConfig app) : IResponder
 {
@@ -24,6 +25,7 @@ public class GeminiResponder(AppConfig app) : IResponder
     private readonly TimeoutConfig timeouts = app.Timeouts ?? new TimeoutConfig();
     private readonly string tempDir = Path.Combine(Path.GetTempPath(), "tether");
     private int[]? lastImageBefore;
+    private int[]? lastAnswerBefore;
 
     public string AppId => app.Id;
 
@@ -37,33 +39,53 @@ public class GeminiResponder(AppConfig app) : IResponder
             .Where(e => e.Current.BoundingRectangle is { Width: >= 200, Height: >= 200 })
             .ToList();
 
-    /// <summary>Images after the one that was last before the prompt (all of them if it is gone).</summary>
-    private List<AutomationElement> NewImages(AutomationElement win)
+    /// <summary>Answer bodies (markdown panels) in conversation order. The user's prompt bubble is not one of them.</summary>
+    private List<AutomationElement> Answers(AutomationElement win) => UiaFinder.FindAll(win, app.Selector("answer"));
+
+    /// <summary>Elements after the one that was last before the prompt (the last one only if it is gone).</summary>
+    private static List<AutomationElement> NewAfter(List<AutomationElement> all, int[]? lastBefore)
     {
-        var images = Images(win);
-        if (lastImageBefore is null) return images;
-        var i = images.FindIndex(e => e.GetRuntimeId().SequenceEqual(lastImageBefore));
-        if (i >= 0) return images.Skip(i + 1).ToList();
-        return images.Count > 0 && !images[^1].GetRuntimeId().SequenceEqual(lastImageBefore) ? [images[^1]] : [];
+        if (lastBefore is null) return all;
+        var i = all.FindIndex(e => e.GetRuntimeId().SequenceEqual(lastBefore));
+        if (i >= 0) return all.Skip(i + 1).ToList();
+        return all.Count > 0 && !all[^1].GetRuntimeId().SequenceEqual(lastBefore) ? [all[^1]] : [];
     }
 
-    public Task DeliverAsync(string prompt, CancellationToken ct) => Task.Run(() =>
+    public Task DeliverAsync(AppRequest request, CancellationToken ct) => Task.Run(() =>
     {
         var (p, win) = UiaFinder.MainWindow(app);
         User32.Activate(p.MainWindowHandle);
+        if (request.Thread == ThreadMode.New) OpenNewChat(win, ct);
         var input = UiaFinder.WaitAll(win, app.Selector("input"), FindTimeout).FirstOrDefault()
             ?? throw new InvalidOperationException($"{app.Id} 입력창을 찾을 수 없습니다");
         lastImageBefore = Images(win).LastOrDefault()?.GetRuntimeId();
+        lastAnswerBefore = Answers(win).LastOrDefault()?.GetRuntimeId();
         ct.ThrowIfCancellationRequested();
-        Keys.PasteAndEnter(p.MainWindowHandle, input, prompt);
+        Keys.PasteAndEnter(p.MainWindowHandle, input, request.Body);
     }, ct);
 
-    public Task<AppReply> CollectReplyAsync(CancellationToken ct) => Task.Run(() =>
+    /// <summary>Clicks "새 채팅" and waits until the old conversation's answers are gone.</summary>
+    private void OpenNewChat(AutomationElement win, CancellationToken ct)
+    {
+        var link = UiaFinder.WaitAll(win, app.Selector("newChat"), FindTimeout).FirstOrDefault()
+            ?? throw new InvalidOperationException($"{app.Id} 새 채팅 버튼을 찾을 수 없습니다");
+        UiaFinder.Invoke(link);
+        var sw = Stopwatch.StartNew();
+        while (Answers(win).Count > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (sw.Elapsed > FindTimeout) throw new InvalidOperationException($"{app.Id} 새 채팅을 열지 못했습니다");
+            Thread.Sleep(300);
+        }
+    }
+
+    public Task<AppReply> CollectReplyAsync(AppRequest request, CancellationToken ct) => Task.Run(() =>
     {
         var (p, win) = UiaFinder.MainWindow(app);
+        var wantImage = request.Reply == ReplyKind.Image;
         var sw = Stopwatch.StartNew();
         var stable = Stopwatch.StartNew();
-        var lastCount = -1;
+        var lastSignature = "";
         var stopSeen = false;
 
         while (sw.Elapsed.TotalSeconds < timeouts.ResponseSec)
@@ -71,18 +93,56 @@ public class GeminiResponder(AppConfig app) : IResponder
             ct.ThrowIfCancellationRequested();
             var generating = UiaFinder.FindAll(win, app.Selector("stopButton")).Count > 0;
             stopSeen |= generating;
-            var fresh = NewImages(win);
-            var count = fresh.Count;
-            if (generating || count != lastCount) { stable.Restart(); lastCount = count; }
+            var images = wantImage ? NewAfter(Images(win), lastImageBefore) : [];
+            var answers = NewAfter(Answers(win), lastAnswerBefore);
+            var signature = $"{images.Count}|{answers.Count}|{(answers.Count > 0 ? UiaText(answers[^1]).Length : -1)}";
+            if (generating || signature != lastSignature) { stable.Restart(); lastSignature = signature; }
 
-            // images can render a while after the stop button disappears
+            // images can render a while after the stop button disappears; text is done once it stops changing
             var idle = stable.Elapsed.TotalSeconds;
-            var done = !generating && (count > 0 ? idle >= timeouts.StableSec : stopSeen && idle >= timeouts.TextIdleSec);
-            if (done) return new AppReply(null, SaveNewImages(p, win, fresh, ct));
+            var done = !generating && (images.Count > 0
+                ? idle >= timeouts.StableSec
+                : (answers.Count > 0 || (wantImage && stopSeen)) && idle >= timeouts.TextIdleSec);
+            if (done)
+            {
+                var text = answers.Count > 0 ? ReadAnswer(win, answers[^1]) : null;
+                return new AppReply(string.IsNullOrWhiteSpace(text) ? null : text, SaveNewImages(p, win, images, ct));
+            }
             Thread.Sleep(1000);
         }
         throw new TimeoutException($"{app.Id} 응답 시간 초과 ({timeouts.ResponseSec}초)");
     }, ct);
+
+    /// <summary>
+    /// The answer as markdown via its own copy button (the toolbar right under the answer);
+    /// falls back to the answer's UIA text lines.
+    /// </summary>
+    private string ReadAnswer(AutomationElement win, AutomationElement answer)
+    {
+        var bottom = answer.Current.BoundingRectangle.Bottom;
+        var copy = UiaFinder.FindAll(win, app.Selector("answerCopy"))
+            .Select(b => (b, y: b.Current.BoundingRectangle.Y))
+            .Where(t => t.y >= bottom - 5 && t.y <= bottom + 120)
+            .OrderBy(t => t.y)
+            .Select(t => t.b)
+            .FirstOrDefault();
+        if (copy is not null)
+        {
+            var copied = Sta.Run(() =>
+            {
+                using var clip = new ClipboardScope();
+                Clipboard.Clear();
+                UiaFinder.Invoke(copy);
+                return WaitFor(TimeSpan.FromSeconds(5), () => Clipboard.ContainsText() ? Clipboard.GetText() : null);
+            });
+            if (!string.IsNullOrWhiteSpace(copied)) return copied.Replace("\r\n", "\n").Trim();
+        }
+        return UiaText(answer);
+    }
+
+    private static string UiaText(AutomationElement answer) =>
+        string.Join("\n", answer.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text))
+            .Cast<AutomationElement>().Select(e => e.Current.Name)).Trim();
 
     private List<string> SaveNewImages(Process p, AutomationElement win, List<AutomationElement> images, CancellationToken ct)
     {

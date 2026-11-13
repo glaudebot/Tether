@@ -24,6 +24,26 @@ public static class ProtocolDoc
             - 둘째 줄부터가 그 앱에 그대로 입력될 프롬프트
             - 파일은 Tether가 읽은 뒤 지운다
 
+            ### 머리줄 (선택)
+
+            `to:` 다음 줄부터 `키: 값` 머리줄을 쓰고, **빈 줄 하나** 뒤에 본문을 쓴다. 머리줄은 앱에 입력되지 않는다.
+
+            ```
+            to: gemini
+            reply: text
+            thread: new
+
+            이 설계안을 검토해줘 ...
+            ```
+
+            | 키 | 값 | 기본값 | 뜻 |
+            |---|---|---|---|
+            | `reply` | `image` / `text` | `image` | `image`는 새 이미지를 기다려 저장, `text`는 텍스트 답변이 끝나면 바로 완료 |
+            | `thread` | `continue` / `new` | `continue` | `new`면 붙여 넣기 전에 새 채팅을 연다 |
+
+            - 모르는 키나 잘못된 값이면 요청이 `Failed`가 된다(오타가 본문으로 새지 않게).
+            - 머리줄 없이 본문 첫 줄이 `Note: ...`처럼 `영단어:`로 시작하면 머리줄로 읽힌다. 이때는 `to:` 다음에 빈 줄을 하나 넣는다.
+
             ## 사용 가능한 앱
 
             {apps}
@@ -37,7 +57,8 @@ public static class ProtocolDoc
             [Tether] #000002 실패: gemini 창을 찾을 수 없습니다
             ```
 
-            알림을 받으면 `packets\<번호>\` 폴더의 파일(`reply.md`, `reply-N.png`)을 읽어서 확인한다.
+            알림을 받으면 `packets\<번호>\` 폴더의 파일을 읽어서 확인한다.
+            `reply.md`는 그 요청에 대한 답변 텍스트(마크다운, 있으면), `reply-N.png`는 새 이미지(`reply: image`일 때)다.
 
             **Claude Code (`outbox\claude-code\`)는 알림을 받지 않는다.** 요청 파일을 쓴 뒤
             가장 큰 번호의 새 `packets\<번호>\status.json`을 찾아, `status`가 `Replied`/`Notified`/`Failed`가
