@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\..\config\tether.json" Link="config\tether.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Tether.Automation\Tether.Automation.csproj" />
   </ItemGroup>
 

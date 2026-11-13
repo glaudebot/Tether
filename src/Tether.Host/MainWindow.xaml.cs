@@ -17,7 +17,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         var args = Environment.GetCommandLineArgs();
         var i = Array.IndexOf(args, "--config");
-        vm = new MainViewModel(i > 0 && i + 1 < args.Length ? args[i + 1] : "config/tether.json");
+        vm = new MainViewModel(i > 0 && i + 1 < args.Length ? args[i + 1] : DefaultConfig());
         DataContext = vm;
         SizeChanged += (_, _) => ApplyLayout();
 
@@ -39,6 +39,13 @@ public partial class MainWindow : Window
             AppDomain.CurrentDomain.UnhandledException += (_, _) => dock?.UndockAll();
             AppDomain.CurrentDomain.ProcessExit += (_, _) => dock?.UndockAll();
         };
+    }
+
+    /// <summary>config/tether.json in the working directory (dev runs from the repo), else next to the exe (packaged).</summary>
+    private static string DefaultConfig()
+    {
+        const string rel = "config/tether.json";
+        return System.IO.File.Exists(rel) ? rel : System.IO.Path.Combine(AppContext.BaseDirectory, rel);
     }
 
     private bool? stacked;
