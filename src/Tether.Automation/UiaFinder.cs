@@ -56,6 +56,21 @@ public static class UiaFinder
     public static void Invoke(AutomationElement e) =>
         ((InvokePattern)e.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
 
+    /// <summary>
+    /// Scrolls the element to the top of the view so controls built only near the viewport exist
+    /// (Gemini's copy/download buttons). Best effort: does nothing if the element can't scroll.
+    /// </summary>
+    public static void ScrollIntoView(AutomationElement e)
+    {
+        try
+        {
+            if (!e.TryGetCurrentPattern(ScrollItemPattern.Pattern, out var p)) return;
+            ((ScrollItemPattern)p).ScrollIntoView();
+            Thread.Sleep(800);
+        }
+        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException) { }
+    }
+
     public static string Value(AutomationElement e) =>
         e.TryGetCurrentPattern(ValuePattern.Pattern, out var p) ? ((ValuePattern)p).Current.Value : "";
 

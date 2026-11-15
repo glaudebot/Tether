@@ -45,7 +45,8 @@ public class Router(PacketStore store, IEnumerable<IResponder> responders, IEnum
         }
         catch (Exception e)
         {
-            return await FailAsync(packet, e.Message, ct);
+            // some UIA exceptions carry no message; the type name still says what happened
+            return await FailAsync(packet, string.IsNullOrWhiteSpace(e.Message) ? e.GetType().Name : e.Message, ct);
         }
         finally { gate.Release(); }
 

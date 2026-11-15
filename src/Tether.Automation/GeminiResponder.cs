@@ -31,7 +31,7 @@ public class GeminiResponder(AppConfig app) : IResponder
 
     /// <summary>
     /// Generated images in conversation order. Their download/copy buttons are only built near the viewport,
-    /// so images (not buttons) are what we count; small icons are skipped.
+    /// so images (not buttons) are what we count, and ButtonFor scrolls to the image first; small icons are skipped.
     /// </summary>
     private static List<AutomationElement> Images(AutomationElement win) =>
         win.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Image))
@@ -105,8 +105,15 @@ public class GeminiResponder(AppConfig app) : IResponder
                 : (answers.Count > 0 || (wantImage && stopSeen)) && idle >= timeouts.TextIdleSec);
             if (done)
             {
+                // Elements found far from the viewport get re-created when scrolled to (stale handles):
+                // bring the new answer into view, find everything again, and save images before reading text.
+                if (answers.Count > 0) UiaFinder.ScrollIntoView(answers[^1]);
+                else if (images.Count > 0) UiaFinder.ScrollIntoView(images[^1]);
+                images = wantImage ? NewAfter(Images(win), lastImageBefore) : [];
+                answers = NewAfter(Answers(win), lastAnswerBefore);
+                var saved = SaveNewImages(p, win, images, ct);
                 var text = answers.Count > 0 ? ReadAnswer(win, answers[^1]) : null;
-                return new AppReply(string.IsNullOrWhiteSpace(text) ? null : text, SaveNewImages(p, win, images, ct));
+                return new AppReply(string.IsNullOrWhiteSpace(text) ? null : text, saved);
             }
             Thread.Sleep(1000);
         }
@@ -119,6 +126,11 @@ public class GeminiResponder(AppConfig app) : IResponder
     /// </summary>
     private string ReadAnswer(AutomationElement win, AutomationElement answer)
     {
+        // Gemini doesn't auto-scroll, and far from the viewport an answer has no text lines and no copy button.
+        // Bring the answer box into view (its lines render), then its last line (the copy button is right below).
+        UiaFinder.ScrollIntoView(answer);
+        var lines = answer.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text));
+        if (lines.Count > 0) UiaFinder.ScrollIntoView(lines[lines.Count - 1]);
         var bottom = answer.Current.BoundingRectangle.Bottom;
         var copy = UiaFinder.FindAll(win, app.Selector("answerCopy"))
             .Select(b => (b, y: b.Current.BoundingRectangle.Y))
@@ -165,6 +177,7 @@ public class GeminiResponder(AppConfig app) : IResponder
     /// </summary>
     private AutomationElement? ButtonFor(AutomationElement win, string selector, AutomationElement image)
     {
+        UiaFinder.ScrollIntoView(image); // the buttons only exist near the viewport
         var img = image.Current.BoundingRectangle;
         return UiaFinder.FindAll(win, app.Selector(selector))
             .Select(b => (b, y: b.Current.BoundingRectangle.Y))
@@ -233,7 +246,9 @@ public class GeminiResponder(AppConfig app) : IResponder
         {
             var v = probe();
             if (!EqualityComparer<T>.Default.Equals(v, default!) || sw.Elapsed > timeout) return v;
-            Thread.Sleep(500);
+            // Join (not Sleep) pumps messages on an STA thread. After Clipboard.Clear() this thread owns the
+            // clipboard, and Gemini's copy waits on a message to the owner: with Sleep it stalls until we give up.
+            Thread.CurrentThread.Join(500);
         }
     }
 }

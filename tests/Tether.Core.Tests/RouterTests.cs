@@ -84,6 +84,22 @@ public sealed class RouterTests : IDisposable
     }
 
     [Fact]
+    public async Task Submit_ResponderThrowsWithoutMessage_RecordsExceptionType()
+    {
+        gemini.CollectError = new MessagelessException();
+
+        var p = await NewRouter().SubmitAsync("claude", "to: gemini\nx", default);
+
+        Assert.Equal(Failed, p.Status);
+        Assert.Equal("MessagelessException", p.Error);
+    }
+
+    private sealed class MessagelessException : Exception
+    {
+        public override string Message => "";
+    }
+
+    [Fact]
     public async Task Submit_OverLimit_Fails()
     {
         var router = NewRouter(max: 1);
