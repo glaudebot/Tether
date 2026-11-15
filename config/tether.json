@@ -21,7 +21,7 @@
         "answerCopy": { "controlType": "Button", "name": "복사" },
         "newChat": { "controlType": "Hyperlink", "name": "새 채팅" }
       },
-      "timeouts": { "responseSec": 180, "stableSec": 3, "downloadSec": 90, "textIdleSec": 20 }
+      "timeouts": { "responseSec": 300, "stableSec": 3, "downloadSec": 90, "textIdleSec": 20 }
     }
   ]
 }

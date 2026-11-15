@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         var i = Array.IndexOf(args, "--config");
         vm = new MainViewModel(i > 0 && i + 1 < args.Length ? args[i + 1] : DefaultConfig());
         DataContext = vm;
+        RestorePlacement();
         SizeChanged += (_, _) => ApplyLayout();
 
         Loaded += (_, _) =>
@@ -71,8 +72,44 @@ public partial class MainWindow : Window
         }
     }
 
+    private static readonly string PlacementFile =
+        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tether", "window.txt");
+
+    /// <summary>Last position/size ("left top width height maximized"), if it still lands on a screen.</summary>
+    private void RestorePlacement()
+    {
+        try
+        {
+            var v = System.IO.File.ReadAllText(PlacementFile).Split(' ');
+            var (l, t, w, h) = (Num(v[0]), Num(v[1]), Num(v[2]), Num(v[3]));
+            var onScreen = l + w > SystemParameters.VirtualScreenLeft + 50 && t + 20 > SystemParameters.VirtualScreenTop
+                && l < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 50
+                && t < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 50;
+            if (!onScreen || w < 200 || h < 150) return; // monitor gone or garbage: keep the default
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            (Left, Top, Width, Height) = (l, t, w, h);
+            if (v.Length > 4 && v[4] == "1") WindowState = WindowState.Maximized;
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or FormatException or IndexOutOfRangeException) { }
+
+        static double Num(string s) => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private void SavePlacement()
+    {
+        try
+        {
+            var b = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PlacementFile)!);
+            System.IO.File.WriteAllText(PlacementFile, FormattableString.Invariant(
+                $"{b.Left} {b.Top} {b.Width} {b.Height} {(WindowState == WindowState.Maximized ? 1 : 0)}"));
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException) { }
+    }
+
     protected override void OnClosing(CancelEventArgs e)
     {
+        SavePlacement();
         dock?.Dispose();
         vm.Dispose();
         base.OnClosing(e);

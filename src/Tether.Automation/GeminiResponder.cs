@@ -91,6 +91,22 @@ public class GeminiResponder(AppConfig app) : IResponder
         while (sw.Elapsed.TotalSeconds < timeouts.ResponseSec)
         {
             ct.ThrowIfCancellationRequested();
+            try
+            {
+                var reply = Poll();
+                if (reply is not null) return reply;
+            }
+            catch (ElementNotAvailableException)
+            {
+                // Gemini re-creates elements while it writes (code blocks re-render): treat as still changing
+                stable.Restart();
+            }
+            Thread.Sleep(1000);
+        }
+        throw new TimeoutException($"{app.Id} 응답 시간 초과 ({timeouts.ResponseSec}초)");
+
+        AppReply? Poll()
+        {
             var generating = UiaFinder.FindAll(win, app.Selector("stopButton")).Count > 0;
             stopSeen |= generating;
             var images = wantImage ? NewAfter(Images(win), lastImageBefore) : [];
@@ -115,9 +131,8 @@ public class GeminiResponder(AppConfig app) : IResponder
                 var text = answers.Count > 0 ? ReadAnswer(win, answers[^1]) : null;
                 return new AppReply(string.IsNullOrWhiteSpace(text) ? null : text, saved);
             }
-            Thread.Sleep(1000);
+            return null;
         }
-        throw new TimeoutException($"{app.Id} 응답 시간 초과 ({timeouts.ResponseSec}초)");
     }, ct);
 
     /// <summary>
