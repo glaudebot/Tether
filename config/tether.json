@@ -1,6 +1,6 @@
 {
   "exchangeRoot": "C:/Tether/exchange",
-  "maxPacketsPerRun": 20,
+  "maxPacketsPerRun": 100,
   "apps": [
     {
       "id": "claude", "role": "requester", "process": "claude",
