@@ -13,6 +13,7 @@ Claude / Claude Code ──(요청 파일)──▶ Tether ──(붙여넣기)�
 
 - **도킹**: 앱 창을 Tether의 슬롯 A/B에 끌어다 놓으면 Tether 창을 따라 움직입니다. 해제·종료 시 원래 위치로 돌아갑니다.
   세로로 긴 창에서는 A / 연결 화면 / B 순서로 쌓입니다. `Embed (실험)`을 켜면 창을 자식 창으로 넣습니다.
+  Tether 창의 위치와 크기는 껐다 켜도 그대로입니다(`%LOCALAPPDATA%\Tether\window.txt`).
 - **연결**: Requester 앱이 `outbox/<앱>/*.md` 파일을 쓰면 Tether가 Gemini 입력창에 붙여 넣고, 생성이 끝나면 이미지를 원본 크기로 저장합니다.
 - **Link View**: 가운데에 앱 사이 연결선, 오가는 패킷, 상태 색, 타임라인을 보여 줍니다. 타임라인을 누르면 요청 원문과 응답 이미지를 미리 봅니다.
 
@@ -71,7 +72,7 @@ Tether로 Gemini에게 일을 맡길 수 있어. 규칙은 C:\Tether\exchange\PR
   텍스트 답이 필요하면 "reply: text", 새 대화로 시작하려면 "thread: new" 머리줄을 쓰고 빈 줄 뒤에 본문을 쓴다.
 - 결과: 요청 직후 C:\Tether\exchange\packets\ 에서 가장 큰 번호 폴더의 status.json을
   백그라운드로 확인한다. status가 Replied/Notified 면 reply.md(텍스트)와 reply-N.png(이미지)를 읽고,
-  Failed 면 error를 보고한다. 이미지는 몇 분 걸릴 수 있다.
+  Failed 면 error를 보고한다. 텍스트는 30초~1분, 이미지는 몇 분 걸릴 수 있다(최대 5분).
 - packets\ 아래 파일은 읽기만 한다. 요청은 한 번에 하나씩 보낸다.
 ```
 
@@ -135,6 +136,8 @@ to: gemini
   모르는 키나 잘못된 값은 `Failed`로 거절합니다. 본문 첫 줄이 `Note: ...`처럼 생겼다면 `to:` 다음에 빈 줄을 넣으세요.
 - 결과는 `packets\<6자리 번호>\`에 `request.md`, `status.json`, `reply.md`(답변 텍스트, 마크다운), `reply-1.png`(새 이미지)로 저장됩니다.
 - 상태: `Queued → Delivering → Generating → Replied → Notified`, 실패하면 `Failed`와 `error`.
+- 완료 판정: Gemini의 생성 중지 버튼이 사라지고 답이 20초(`textIdleSec`) 동안 그대로면 끝난 것으로 봅니다(새 이미지는 3초). 그래서 짧은 텍스트 답도 저장까지 30초 넘게 걸립니다. 최대 300초(`responseSec`)를 넘기면 `응답 시간 초과`로 실패합니다.
+- 긴 답변이나 화면 밖으로 밀려난 이미지는 Tether가 Gemini 창을 직접 스크롤해서 복사·다운로드합니다.
 - **Claude 데스크톱**(`outbox\claude\`)은 Tether가 입력창에 도착 알림을 붙여 넣어 줍니다.
 - **Claude Code**(`outbox\claude-code\`)는 알림이 없으니 `status.json`을 직접 확인합니다.
 
@@ -158,5 +161,7 @@ docs/                 UIA 메모, 구현 계획
 
 - 개인용 도구입니다. 소비자용 앱의 UI를 자동화하므로 앱이 업데이트되면 셀렉터가 깨질 수 있습니다.
 - 자동화 중에는 클립보드를 잠시 사용합니다(백업 후 복원).
-- 실행당 패킷은 최대 20개입니다(`maxPacketsPerRun`).
+- Tether가 붙여 넣고 Enter를 누르는 동안(Link View의 `Delivering`) 키보드·마우스를 쓰지 마세요. 포커스가 옮겨 가면 요청이 입력되지 않고 시간 초과로 실패합니다. 답을 기다리는 동안 Gemini 창을 스크롤하거나 클릭하는 것도 피하세요.
+- Gemini 창은 너비 약 700px 이상으로 두세요. 더 좁으면 사이드바가 접혀 `thread: new`가 `새 채팅 버튼을 찾을 수 없습니다`로 실패합니다.
+- 실행당 패킷은 최대 100개입니다(`maxPacketsPerRun`). Tether를 다시 켜면 처음부터 셉니다.
 - Embed 모드에서 Tether를 강제 종료하면 넣어 둔 앱 창도 함께 닫힙니다. 창의 닫기 버튼으로 종료하세요.
